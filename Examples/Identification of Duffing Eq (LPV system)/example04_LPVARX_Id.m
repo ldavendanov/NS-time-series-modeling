@@ -39,7 +39,7 @@ t = linspace(1/fs0,T,N);                                                    % Ti
 
 %-- Creating the excitation force
 f0 = 0;
-f1 = fs0/4;
+f1 = fs0/8;
 t1 = T/2;
 F = @(t)sf_cosine(t,f0,t1,f1);                                              % Creating the excitation based on the provided NID sample
 
@@ -67,9 +67,9 @@ close all
 clc
 
 %-- Properties of the downsampled signal
-N = 1e4;                                                                    % Signal length
-T0 = 2e3;                                                                   % Time to start analysis
-fs = 32;                                                                    % Analysis sampling frequency
+N = 25600;                                                                  % Signal length
+T0 = 0;                                                                     % Time to start analysis
+fs = 64;                                                                    % Analysis sampling frequency
 
 %-- Resampling
 x = resample(y(:,1),fs,fs0);                                                % Resampling the response signal
@@ -79,7 +79,7 @@ t = t(1:fs0/fs:end);                                                        % Re
 %-- Trimming the signals
 x = x(T0+(1:N));                                                            % Trimming the response signal into the desired analysis period
 u = u(T0+(1:N));                                                            % Trimming the excitation signal into the desired analysis period
-t = t(T0+(1:N))- t(1e4);                                                    % Trimming the time vector into the desired analysis period
+t = t(T0+(1:N));                                                            % Trimming the time vector into the desired analysis period
 
 %% Part 2 : Identification via LPV-AR models - Selection of the model order
 % Standard model order selection is carried out. A range of model orders is
@@ -92,9 +92,10 @@ close all
 clc
 
 %-- Fixing the input variables and training/validation indices
-x = x(:)';                                                                  % Response (displacement)
-u = u(:)';                                                                  % Excitation (force)
-xi = x;                                                                     % Scheduling variable (also displacement!)
+signals.excitation = u(:)';                                                 % Excitation (force)
+signals.response = x(:)';                                                   % Response (displacement)
+signals.scheduling_variables = x(:)';                                       % Scheduling variable (also displacement!)
+
 ind_train = true(1,N);                                                      % Indices for training of the LPV-AR model
 ind_val = ind_train;                                                        % Indices for validation
 
@@ -113,13 +114,13 @@ for na = 1:na_max
     
     %-- Calculating training performance criteria
     order = [na na pa];
-    [Theta,sigmaW,~,criteria] = lpv_arx(u(ind_train),x(ind_train),xi(ind_train),order,options);
-    rss_sss(1,na) = criteria.rss_sss;
-    lnL(1,na) = criteria.lnL;
-    bic(na) = criteria.bic;
+    M = estimate_lpv_arx(signals,order,options);
+    rss_sss(1,na) = M.performance.rss_sss;
+    lnL(1,na) = M.performance.lnL;
+    bic(na) = M.performance.bic;
     
     %-- Calculating validation performance criteria
-    [~,criteria] = simulate_lpv_arx(Theta,sigmaW,u(ind_val),x(ind_val),xi(ind_val),order,options);
+    [~,criteria] = simulate_lpv_arx(signals,M);
     rss_sss(2,na) = criteria.rss_sss;
     lnL(2,na) = criteria.lnL;
 end
@@ -146,15 +147,6 @@ grid on
 xlabel('Model order')
 ylabel('BIC')
 
-figure('Position',[100 600 800 400])
-bins = linspace(-10,10,40);
-histogram(xi(ind_train),bins)
-hold on
-histogram(xi(ind_val),bins)
-grid on
-legend({'Training','Validation'})
-xlabel('Scheduling variable \xi')
-
 %% Part 3 : Identification via LPV-AR models - Basis order analysis
 % Based on the model order selected on Part 2, here an analysis of the
 % coefficients of the LPV-AR model is carried out. The objective of this
@@ -175,20 +167,20 @@ clc
 clear lnL rss_sss bic
 
 %-- Structural parameters of the LPV-AR model
-na = 8;                                                                     % Model order
+na = 12;                                                                     % Model order
 pa = 4;                                                                     % Functional basis order
 order = [na na pa];                                                         % Order parameters
 options.basis.type = 'hermite';                                             % Type of functional basis
 
 %-- Estimating the LPV-AR model for the training data
-[A0,sigmaW0,SigmaTh,criteria] = lpv_arx(u(ind_train),x(ind_train),xi(ind_train),order,options);
-rss_sss(1,1) = criteria.rss_sss;
-lnL(1,1) = criteria.rss_sss;
+M = estimate_lpv_arx(signals,order,options);
+rss_sss(1,1) = M.performance.rss_sss;
+lnL(1,1) = M.performance.lnL;
 
 %-- Validating the LPV-AR model on the validation data
-[xhat0,criteria] = simulate_lpv_arx(A0,sigmaW0,u(ind_val),x(ind_val),xi(ind_val),order,options);
+[xhat0,criteria] = simulate_lpv_arx(signals,M);
 rss_sss(2,1) = criteria.rss_sss;
-lnL(2,1) = criteria.rss_sss;
+lnL(2,1) = criteria.lnL;
 
 %-- Chi square test for the LPV-AR coefficients
 % This test evaluates the hypothesis that the LPV-AR coefficients are zero.
@@ -196,25 +188,24 @@ lnL(2,1) = criteria.rss_sss;
 % distributed with mean zero and covariance equal to that provided by the
 % estimation algorithm.
 
-sigmaTh = diag(SigmaTh);
-sigmaTh = reshape(sigmaTh,pa,2*na+1);                                       % Variance of the LPV-AR coefficients
-chi2 = A0.^2./sigmaTh;                                                      % Test statistic (chi squared distributed)
+chi2_theta = M.performance.chi2_theta;                                      % Test statistic (chi squared distributed)
+chi2_theta = reshape(chi2_theta,pa,2*na+1);
 alph_chi2 = 10.^(-4:-1);                                                    % Probability of type I error (rejecting the null hypothesis)
-rho = chi2pdf( alph_chi2, 1 );                                              % Threshold for error probablity
+rho = chi2inv( 1-alph_chi2, 1 );                                              % Threshold for error probablity
 
 Mrk = 'oxd^';
 
 figure('Position',[100 100 600 800])
 pt = zeros(pa,1);
 for j=1:pa
-    pt(j) = semilogy( 1:2*na+1, chi2(j,:), ['--',Mrk(j)], 'MarkerSize', 10, 'LineWidth', 2 );
+    pt(j) = semilogy( 1:2*na+1, chi2_theta(j,:), ['--',Mrk(j)], 'MarkerSize', 10, 'LineWidth', 2 );
     hold on
 end
 
 grid on
 for i=1:numel(rho)
     semilogy( [1 2*na+1], rho(i)*[1 1], 'k' )
-    text( 1.1, 1.5*rho(i), ['\alpha = ',num2str(alph_chi2(i))] )
+    text( 1.1, 1.2*rho(i), ['\alpha = ',num2str(alph_chi2(i))] )
 end
 set(gca,'XTick',1:2*na+1)
 legend(pt, {'$f_0(\xi)$','$f_1(\xi)$','$f_2(\xi)$','$f_3(\xi)$'},'Interpreter','latex')
@@ -222,53 +213,21 @@ xlabel('Model order')
 ylabel('\chi^2 test statistic')
 
 %-- Selected basis indices
-basis_indices = max( chi2 > rho(3) ,[],2);
+basis_indices = max( chi2_theta > rho(3) ,[],2);
 
 %% Validating the obtained LPV-AR model in the validation data
 close all
 clc
 
-opts = options;
-opts.basis.indices = basis_indices;
-
-%-- Estimating the LPV-AR model for the training data
-[A,sigmaW,SigmaTh,criteria] = lpv_ar(x(ind_train),xi(ind_train),order,opts);
-rss_sss(1,2) = criteria.rss_sss;
-lnL(1,2) = criteria.rss_sss;
-
-%-- Validating the LPV-AR model on the validation data
-[xhat,criteria] = simulate_lpv_ar(A,sigmaW,x(ind_val),xi(ind_val),order,opts);
-rss_sss(2,2) = criteria.rss_sss;
-lnL(2,2) = criteria.rss_sss;
-
 figure('Position',[100 100 900 800])
 subplot(211)
-plot(t(ind_train),xhat0,t(ind_val),xhat,t(ind_train),x(ind_val))
-xlim([30 60])
+plot(t,xhat0,t,x)
+% xlim([30 60])
 grid on
 xlabel('Time (s)')
 ylabel('Displacement')
-legend({'Complete LPV-AR model','Reduced LPV-AR model','Original'})
+legend({'LPV-AR model','Original'})
 
 subplot(212)
-pwelch([xhat0;xhat;x(ind_val)]')
-legend({'Complete LPV-AR model','Reduced LPV-AR model','Original'})
-
-figure('Position',[1000 100 900 800])
-AA = zeros(size(A0));
-AA(basis_indices,:) = A;
-for i=1:pa
-    subplot(pa,1,i)
-    plot(A0(i,:),['--',Mrk(1)])
-    hold on
-    if basis_indices(i)
-        plot(AA(i,:),['--',Mrk(1)])
-        legend({'Complete','Reduced'})
-    else
-        legend('Complete')
-    end
-    grid on
-    ylabel(['$a_{i,',num2str(i),'}$'],'Interpreter','latex')
-    xlabel('AR order')
-    set(gca,'XTick',1:na)
-end
+pwelch([xhat0;x']')
+legend({'LPV-AR model','Original'})

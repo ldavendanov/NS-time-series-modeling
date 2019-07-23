@@ -190,7 +190,7 @@ lnL(2,1) = criteria.lnL;
 
 chi2_theta = reshape( M.performance.chi2_theta, pa, na );                   % Test statistic (chi squared distributed)
 alph_chi2 = 10.^(-4:-1);                                                    % Probability of type I error (rejecting the null hypothesis)
-rho = chi2pdf( alph_chi2, 1 );                                              % Threshold for error probablity
+rho = chi2inv( 1-alph_chi2, 1 );                                            % Threshold for error probablity
 
 Mrk = 'oxd^';
 
@@ -204,7 +204,7 @@ end
 grid on
 for i=1:numel(rho)
     semilogy( [1 na], rho(i)*[1 1], 'k' )
-    text( 1.1, 1.5*rho(i), ['\alpha = ',num2str(alph_chi2(i))] )
+    text( 1.1, 1.2*rho(i), ['\alpha = ',num2str(alph_chi2(i))] )
 end
 set(gca,'XTick',1:na)
 legend(pt, {'$f_0(\xi)$','$f_1(\xi)$','$f_2(\xi)$','$f_3(\xi)$'},'Interpreter','latex')

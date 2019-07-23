@@ -1,14 +1,20 @@
-function [yhat,criteria] = simulate_lpv_arx(Theta,sigmaW,x,y,xi,order,options)
+function [yhat,criteria] = simulate_lpv_arx(signals,M)
 
-Theta = Theta(:)';
+%-- Unpacking the input
+y = signals.response(:)';                                                   % Response signal
+x = signals.excitation(:)';                                                 % Excitation signal
+xi = signals.scheduling_variables(:)';                                      % Scheduling variable
+[~,N] = size(y);                                                            % Signal length
 
-na = order(1);
-nb = order(2);
-pa = order(3);
-[~,N] = size(y);
+Theta = M.ParameterVector;
+sigmaW = M.InnovationsVariance;
+
+na = M.structure.na;
+nb = M.structure.nb;
+pa = M.structure.pa;
 
 %-- Constructing the representation basis
-switch options.basis.type
+switch M.structure.basis.type
     case 'fourier'
         g = ones(pa,N);
         for j=1:(pa-1)/2
@@ -24,9 +30,9 @@ switch options.basis.type
         
 end
 
-if isfield(options.basis,'indices')
-    g = g(options.basis.indices,:);
-    pa = sum(options.basis.indices);
+if isfield(M.structure.basis,'indices')
+    g = g(M.structure.basis.indices,:);
+    pa = sum(M.structure.basis.indices);
 end
 
 %-- Constructing the lifted signal
@@ -38,9 +44,9 @@ for j=1:pa
 end
 
 %-- Constructing the regression matrix
-PhiX = zeros((nb+1)*pa,N-na);
-PhiY = zeros(na*pa,N-na);
-tau = na+1:N;
+PhiX = zeros((nb+1)*pa,N-max(na,nb));
+PhiY = zeros(na*pa,N-max(na,nb));
+tau = max(na,nb)+1:N;
 for i=1:na
     PhiY((1:pa)+(i-1)*pa,:) = Y(:,tau-i);
 end
