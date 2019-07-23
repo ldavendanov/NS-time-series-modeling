@@ -1,13 +1,16 @@
-function [yhat,criteria] = simulate_lpv_ar(A,sigmaW,y,xi,order,options)
+function [yhat,performance] = simulate_lpv_ar(signals,M)
 
-A = A(:)';
+%% Part 0 : Unpacking the input
+y = signals.response(:)';
+xi = signals.scheduling_variables(:)';
+Theta = M.ParameterVector;
 
-na = order(1);
-pa = order(2);
+na = M.structure.na;
+pa = M.structure.pa;
 [~,N] = size(y);
 
-%-- Constructing the representation basis
-switch options.basis.type
+%% Part 1 : Constructing the representation basis
+switch M.structure.basis.type
     case 'fourier'
         g = ones(pa,N);
         for j=1:(pa-1)/2
@@ -23,10 +26,11 @@ switch options.basis.type
         
 end
 
-if isfield(options.basis,'indices')
-    g = g(options.basis.indices,:);
-    pa = sum(options.basis.indices);
-end
+%-- Selecting the indices of the basis to be used in the analysis
+g = g(M.structure.basis.indices,:);
+pa = sum(M.structure.basis.indices);
+
+%% Part 2 : Constructing the regression matrix
 
 %-- Constructing the lifted signal
 Y = zeros(pa,N);
@@ -41,11 +45,14 @@ for i=1:na
     Phi((1:pa)+(i-1)*pa,:) = Y(:,tau-i);
 end
 
+%% Part 3 : Calculating predicitons and performance
+
 %-- Calculating the prediction error
-yhat = [zeros(1,na), A*Phi];
+yhat = [zeros(1,na), Theta*Phi];
 err = y(:,tau) - yhat(:,tau);
+sigmaW2 = M.InnovationsVariance;
 
 %-- Performance criteria
-criteria.rss = sum(err.^2);
-criteria.rss_sss = criteria.rss/sum(y.^2);
-criteria.lnL = -(1/2)*( sum(log(2*pi*sigmaW) + err.^2/sigmaW) );
+performance.rss = sum(err.^2);
+performance.rss_sss = performance.rss/sum(y.^2);
+performance.lnL = -(1/2)*( sum(log(2*pi*sigmaW2) + err.^2/sigmaW2) );

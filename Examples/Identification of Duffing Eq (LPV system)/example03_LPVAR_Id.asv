@@ -269,39 +269,14 @@ end
 close all
 clc
 
-m = 400;
-Xi_range = linspace(-6,6,m);
-[Pyy,omega,omegaN,zeta] = MBA_lpv_ar(M1,Xi_range);
+M = 100;
+Xi_range = linspace(-10,10,M);
 
-figure('Position',[100 100 900 800])
+Nfrec = 1024;
+Pyy = zeros(Nfrec,M);
 
-subplot(211)
-imagesc(Xi_range,omega*fs/(2*pi),10*log10(Pyy))
-axis xy
-hold on
-plot(Xi_range,omegaN*fs/(2*pi),'w.')
-xlabel('Displacement')
-ylabel('Frequency (Hz)')
-grid on
-cbar = colorbar;
-cbar.Label.String = 'PSD [dB]';
-set(gca,'YTick',0:2:fs/2)
-ylim([0 fs/2])
-
-subplot(212)
-dx = 0.04*[0 1];
-dy = 0.08*[0 1];
-for i=1:na
-    for j=1:m
-        imagesc(Xi_range(j)+dx,omegaN(i,j)*fs/(2*pi)+dy,100*zeta(i,j))
-        hold on
-    end
+for i=1:M
+    [Pyy(:,i),omega] = M.InnovationsVariance*abs( freqz(1,[1 M.a], Nfrec ) );
 end
-xlabel('Displacement')
-ylabel('Frequency (Hz)')
-xlim([-6 6])
-ylim([0 fs/2])
-axis xy
-grid on
-cbar = colorbar;
-cbar.Label.String = 'Damping ratio [%]';
+
+
