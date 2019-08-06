@@ -1,13 +1,13 @@
-function [yhat,performance] = simulate_lpv_ar(signals,M)
+function [yhat,performance] = simulate_lpv_var(signals,M)
 
 %% Part 0 : Unpacking the input
-y = signals.response(:)';
-xi = signals.scheduling_variables(:)';
+y = signals.response;
+xi = signals.scheduling_variables;
 Theta = M.ParameterVector;
 
 na = M.structure.na;
 pa = M.structure.pa;
-[~,N] = size(y);
+[n,N] = size(y);                                                            % Signal length
 
 %% Part 1 : Constructing the representation basis
 switch M.structure.basis.type
@@ -33,26 +33,26 @@ pa = sum(M.structure.basis.indices);
 %% Part 2 : Constructing the regression matrix
 
 %-- Constructing the lifted signal
-Y = zeros(pa,N);
+Y = zeros(n*pa,N);
 for j=1:pa
-    Y(j,:) = -y.*g(j,:);
+    Y((1:n)+n*(j-1),:) = -y.*repmat(g(j,:),n,1);
 end
 
 %-- Constructing the regression matrix
-Phi = zeros(na*pa,N-na);
+Phi = zeros(n*na*pa,N-na);
 tau = na+1:N;
 for i=1:na
-    Phi((1:pa)+(i-1)*pa,:) = Y(:,tau-i);
+    Phi((1:n*pa)+(i-1)*n*pa,:) = Y(:,tau-i);
 end
 
 %% Part 3 : Calculating predicitons and performance
 
 %-- Calculating the prediction error
-yhat = [zeros(1,na), Theta*Phi];
+yhat = [zeros(n,na), Theta*Phi];
 err = y(:,tau) - yhat(:,tau);
-sigmaW2 = M.InnovationsVariance;
+SigmaW = M.InnovationsCovariance;
 
 %-- Performance criteria
-performance.rss = sum(err.^2);
-performance.rss_sss = performance.rss/sum(y.^2);
-performance.lnL = -(1/2)*( sum(log(2*pi*sigmaW2) + err.^2/sigmaW2) );
+performance.rss = sum(sum(err.^2));
+performance.rss_sss = performance.rss/sum(sum(y.^2));
+performance.lnL = -(1/2)*( trace( log(2*pi*det(SigmaW)) + (err'/SigmaW)*err ) );

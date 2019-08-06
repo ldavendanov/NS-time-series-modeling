@@ -1,15 +1,17 @@
-function M = estimate_lpv_ar(signals,order,options)
+function M = estimate_lpv_arx(signals,order,options)
 
 %% Part 0 : Unpacking and checking input
 
 %-- Unpacking the input
 y = signals.response(:)';                                                   % Response signal
+x = signals.excitation(:)';                                                 % Excitation signal
 xi = signals.scheduling_variables(:)';                                      % Scheduling variable
 [~,N] = size(y);                                                            % Signal length
 
 %-- Model structure
-na = order(1);                                                              % AR order
-pa = order(2);                                                              % Basis order
+na = order(1);                                                              % Order AR part
+nb = order(2);                                                              % Order X part
+pa = order(3);                                                              % Basis order
 
 %-- Completing the options structure
 options = check_input(signals,order,options);
@@ -30,8 +32,8 @@ switch options.basis.type
         else
             g = ones(pa,N);
             for j=1:(pa-1)/2
-                g(2*j,:) = sin(j*2*pi*xi);
-                g(2*j+1,:) = cos(j*2*pi*xi);
+                g(2*j,:) = sin(j*xi(1,:));
+                g(2*j+1,:) = cos(j*xi(1,:));
             end
         end
         
@@ -55,16 +57,23 @@ end
 
 %-- Constructing the lifted signal
 Y = zeros(pa,N);
+X = zeros(pa,N);
 for j=1:pa
     Y(j,:) = -y.*g(j,:);
+    X(j,:) =  x.*g(j,:);
 end
 
 %-- Constructing the regression matrix
-Phi = zeros(na*pa,N-na);
-tau = na+1:N;
+PhiY = zeros(na*pa,N-max(na,nb));
+PhiX = zeros((nb+1)*pa,N-max(na,nb));
+tau = max(na,nb)+1:N;
 for i=1:na
-    Phi((1:pa)+(i-1)*pa,:) = Y(:,tau-i);
+    PhiY((1:pa)+(i-1)*pa,:) = Y(:,tau-i);
 end
+for i=0:nb
+    PhiX((1:pa)+i*pa,:) = X(:,tau-i);
+end
+Phi = [PhiY; PhiX];
 
 %% Part 3 : Calculating the estimate
 
@@ -72,7 +81,8 @@ switch options.estimator.type
     %-- Ordinary Least Squares estimator
     case 'ols'
         M = ols(Phi,y(tau));
-        M.a = reshape(M.ParameterVector,pa,na);
+        M.a = reshape(M.ParameterVector(1:na*pa),pa,na);
+        M.b = reshape(M.ParameterVector(na*pa+1:end),pa,nb+1);
         M.estimator = 'Ordinary Least Squares';
         
     case 'map_normal'
@@ -81,21 +91,24 @@ switch options.estimator.type
         sigmaW2 = options.estimator.sigmaW2;                                % Innovations variance
         
         M = mapNormal(Phi,y(tau),Theta0,SigmaTh,sigmaW2);
-        M.a = reshape(M.ParameterVector,pa,na);
+        M.a = reshape(M.ParameterVector(1:na*pa),pa,na);
+        M.b = reshape(M.ParameterVector(na*pa+1:end),pa,nb+1);
         M.estimator = 'Maximum A Posteriori - Normal Prior';
 end
 
 %-- Other fields in the model data structure
 M.structure.na = na;
+M.structure.nb = nb;
 M.structure.pa = length(options.basis.indices);
 M.structure.basis = options.basis;
-M.model_type = 'LPV-AR';
+
 
 %% ------------------------------------------------------------------------
 function options = check_input(signals,order,options)
 
 na = order(1);
-pa = order(2);
+nb = order(2);
+pa = order(3);
 
 if ~isfield(options,'basis')
     options.basis.type = 'hermite';                                         % Default basis type : Hermite polynomials
@@ -112,10 +125,10 @@ end
 
 if strcmp(options.estimator.type,'map_normal')
     if ~isfield(options.estimator,'Theta0')
-        options.estimator.Theta0 = zeros(na*pa,1);
+        options.estimator.Theta0 = zeros((na+nb+1)*pa,1);
     end
     if ~isfield(options.estimator,'SigmaTheta')
-        options.estimator.SigmaTheta = eye(na*pa);
+        options.estimator.SigmaTheta = eye((na+nb+1)*pa);
     end
     if ~isfield(options.estimator,'sigmaW2')
         options.estimator.sigmaW2 = 1;

@@ -1,12 +1,13 @@
-function M = ols(Phi,Y)
+function M = wls(Phi,Y,W)
 
 m = size(Y,1);
 [n,N] = size(Phi);
 
-%-- Computing the OLS parameter estimates
-Theta = Y/Phi;                                                              % Parameter vector estimate
+%-- Computing the WLS parameter estimates
+Theta = Y*W*Phi'/(Phi*W*Phi');                                              % Parameter vector estimate
 Yhat = Theta*Phi;                                                           % One-step-ahead predictions
 err = Y - Yhat;                                                             % One-step-ahead prediction error
+
 if m == 1
     sigmaW2 = var(err);
     M.InnovationsVariance.sigmaW2 = sigmaW2;                                % Innovations variance (scalar output)

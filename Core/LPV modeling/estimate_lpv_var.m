@@ -1,11 +1,11 @@
-function M = estimate_lpv_ar(signals,order,options)
+function M = estimate_lpv_var(signals,order,options)
 
 %% Part 0 : Unpacking and checking input
 
 %-- Unpacking the input
-y = signals.response(:)';                                                   % Response signal
-xi = signals.scheduling_variables(:)';                                      % Scheduling variable
-[~,N] = size(y);                                                            % Signal length
+y = signals.response;                                                       % Response signal
+xi = signals.scheduling_variables;                                          % Scheduling variable
+[n,N] = size(y);                                                            % Signal length
 
 %-- Model structure
 na = order(1);                                                              % AR order
@@ -54,16 +54,16 @@ end
 %% Part 2 : Building the regression matrix
 
 %-- Constructing the lifted signal
-Y = zeros(pa,N);
+Y = zeros(n*pa,N);
 for j=1:pa
-    Y(j,:) = -y.*g(j,:);
+    Y((1:n)+n*(j-1),:) = -y.*repmat(g(j,:),n,1);
 end
 
 %-- Constructing the regression matrix
-Phi = zeros(na*pa,N-na);
+Phi = zeros(n*na*pa,N-na);
 tau = na+1:N;
 for i=1:na
-    Phi((1:pa)+(i-1)*pa,:) = Y(:,tau-i);
+    Phi((1:n*pa)+(i-1)*n*pa,:) = Y(:,tau-i);
 end
 
 %% Part 3 : Calculating the estimate
@@ -71,8 +71,8 @@ end
 switch options.estimator.type
     %-- Ordinary Least Squares estimator
     case 'ols'
-        M = ols(Phi,y(tau));
-        M.a = reshape(M.ParameterVector,pa,na);
+        M = ols(Phi,y(:,tau));
+        M.a = reshape(M.ParameterVector,n,n,pa,na);
         M.estimator = 'Ordinary Least Squares';
         
     case 'map_normal'
@@ -81,7 +81,7 @@ switch options.estimator.type
         sigmaW2 = options.estimator.sigmaW2;                                % Innovations variance
         
         M = mapNormal(Phi,y(tau),Theta0,SigmaTh,sigmaW2);
-        M.a = reshape(M.ParameterVector,pa,na);
+        M.a = reshape(M.ParameterVector,n,n,pa,na);
         M.estimator = 'Maximum A Posteriori - Normal Prior';
 end
 

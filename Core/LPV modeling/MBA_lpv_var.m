@@ -1,8 +1,9 @@
-function [Pyy,omega,omegaN,zeta] = MBA_lpv_ar(M,xi)
+function [Pyy,omega,omegaN,zeta,Psi] = MBA_lpv_var(M,xi)
 
 %% Part 0 : Unpacking and checking input
 
 N = size(xi,2);
+n = size(M.ParameterVector,1);
 
 %-- Model structure
 na = M.structure.na;                                                        % AR order
@@ -41,18 +42,35 @@ end
 %% Part 2 : Calculating the frozen PSD and modal properties
 
 Nfrec = 1024;
-Pyy = zeros(Nfrec,N);
-omegaN = zeros(na,N);
-zeta = zeros(na,N);
+Pyy = zeros(n,n,Nfrec,N);
+Psi = zeros(n,n*na,N);
+omegaN = zeros(n*na,N);
+zeta = zeros(n*na,N);
 
-A = M.a'*g;
-omega = 2*pi*(0:Nfrec-1)/(2*Nfrec);
+A = zeros(n,n,na,N);
+for i=1:N
+    A(:,:,:,i) = squeeze(g(1,i)*M.a(:,:,1,:));
+    for j=2:pa
+        A(:,:,:,i) = A(:,:,:,i) + g(j,i)*squeeze(M.a(:,:,j,:));
+    end
+end
 
+omega = pi*(0:Nfrec-1)/Nfrec;
 
 for i=1:N
-    den = [1; A(:,i)];
-    Pyy(:,i) = M.InnovationsVariance*abs( freqz(1,den, Nfrec ) ).^2;
-    rho = roots(den);
+    
+    for j=1:Nfrec
+        Aden = eye(n);
+        for k=1:na
+            Aden = Aden + A(:,:,k,i)*exp(-1i*omega(j)*k);
+        end
+        Pyy(:,:,j,i) = abs((Aden\M.InnovationsCovariance)/Aden);
+    end 
+    
+    D = [ reshape(A(:,:,:,i),n,n*na); eye(n*(na-1),n*na) ];
+    [V,rho] = eig(D);
+    Psi(:,:,i) = V(1:n,:);
+    rho = diag(rho);
     omegaN(:,i) = abs(log(rho));
     zeta(:,i) = -cos(angle(log(rho)));
 end
