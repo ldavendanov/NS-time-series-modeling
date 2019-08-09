@@ -1,4 +1,4 @@
-function M = estimate_lpv_ar(signals,order,options)
+function M = estimate_lpv_ar(signals,structure,options)
 
 %% Part 0 : Unpacking and checking input
 
@@ -8,94 +8,108 @@ xi = signals.scheduling_variables(:)';                                      % Sc
 [~,N] = size(y);                                                            % Signal length
 
 %-- Model structure
-na = order(1);                                                              % AR order
-pa = order(2);                                                              % Basis order
+na = structure.na;                                                          % AR order
+pa = structure.pa;                                                          % Basis order for AR coefficients
+if isfield(structure,'ps')
+    ps = structure.ps;                                                      % Basis order for innovations variance
+else
+    ps = 1;                                                                 % Single basis (constant)
+end
 
 %-- Completing the options structure
-options = check_input(signals,order,options);
+options = check_input(signals,structure,options);
 
 %% Part 1 : Constructing the representation basis
 
-%-- Building the representation basis according to the basis type
-switch options.basis.type
-    
-    %-- Fourier basis
-    case 'fourier'
-        
-        % The basis order must be odd when using the Fourier basis to
-        % ensure numerical stability
-        if mod(pa,2) == 0
-            pa = pa-1;
-            warning('Basis order must be odd when using the Fourier basis. Basis order set to p-1')
-        else
-            g = ones(pa,N);
-            for j=1:(pa-1)/2
-                g(2*j,:) = sin(j*2*pi*xi);
-                g(2*j+1,:) = cos(j*2*pi*xi);
-            end
-        end
-        
-    %-- Hermite polynomials
-    case 'hermite'
-        g = ones(pa,N);
-        g(2,:) = 2*xi;
-        for j=3:pa
-            g(j,:) = 2*xi.*g(j-1,:) - 2*(j-1)*g(j-2,:);
-        end
-        
+%-- Representation basis for the AR parameters
+if isfield(options.basis,'ind_ba')
+    ba = options.basis.ind_ba;
+    Gba = lpv_basis(xi,ba,options.basis);
+else
+    ba = 1:pa;
+    Gba = lpv_basis(xi,ba,options.basis);
 end
 
-%-- Selecting the indices of the basis to be used in the analysis
-if isfield(options.basis,'indices')
-    g = g(options.basis.indices,:);
-    pa = sum(options.basis.indices);
+%-- Representation basis for the innovations variance
+if ps > 1
+    if isfield(options.basis,'ind_bs')
+        bs = options.basis.ind_bs;
+        Gbs = lpv_basis(xi,bs,options.basis);
+    else
+        bs = 1:ps;
+        Gbs = lpv_basis(xi,bs,options.basis);
+    end
+else
+    bs = 1;
 end
 
 %% Part 2 : Building the regression matrix
 
 %-- Constructing the lifted signal
-Y = zeros(pa,N);
-for j=1:pa
-    Y(j,:) = -y.*g(j,:);
+Y = zeros(numel(ba),N);
+for j=1:numel(ba)
+    Y(j,:) = -y.*Gba(j,:);
 end
 
 %-- Constructing the regression matrix
-Phi = zeros(na*pa,N-na);
+Phi = zeros(na*numel(ba),N-na);
 tau = na+1:N;
 for i=1:na
-    Phi((1:pa)+(i-1)*pa,:) = Y(:,tau-i);
+    Phi((1:numel(ba))+(i-1)*numel(ba),:) = Y(:,tau-i);
 end
 
 %% Part 3 : Calculating the estimate
 
 switch options.estimator.type
+    
     %-- Ordinary Least Squares estimator
     case 'ols'
         M = ols(Phi,y(tau));
-        M.a = reshape(M.ParameterVector,pa,na);
-        M.estimator = 'Ordinary Least Squares';
+        M.ar_part.a = reshape(M.Parameters.Theta,numel(ba),na);
+        M.ar_part.a_time = M.ar_part.a'*Gba;
+        M.Estimator = 'Ordinary Least Squares';
         
+        %-- Instantaneous Innovations Variance estimate
+        if ps > 1            
+            M = InstantaneousVariance( y(tau), M, Phi, Gbs(:,tau) );
+        end
+        
+    %-- Bayesian (Maximum a Posteriori) with normal prior
     case 'map_normal'
         Theta0 = options.estimator.Theta0;                                  % Prior mean parameter vector
         SigmaTh = options.estimator.SigmaTheta;                             % Prior parameter covariance
         sigmaW2 = options.estimator.sigmaW2;                                % Innovations variance
         
         M = mapNormal(Phi,y(tau),Theta0,SigmaTh,sigmaW2);
-        M.a = reshape(M.ParameterVector,pa,na);
-        M.estimator = 'Maximum A Posteriori - Normal Prior';
+        M.ar_part.a = reshape(M.ParameterVector,numel(ba),na);
+        M.ar_part.a_time = M.a'*Gba;
+        M.Estimator = 'Maximum A Posteriori - Normal Prior';
+        
+    %-- Multi-Stage method
+    case 'multi-stage'
+        M = MultiStageML( Phi, y(tau), Gbs(:,tau) );   
+        M.ar_part.a = reshape(M.Parameters.Theta,numel(ba),na);
+        M.ar_part.a_time = M.ar_part.a'*Gba;
+        M.InnovationsVariance.s = M.InnovationsVariance.S.Parameters.Theta;
+        M.InnovationsVariance.sigmaW2 = M.InnovationsVariance.s*Gbs;
+        
+        M.Estimator = 'Multi-Stage ML';
 end
 
 %-- Other fields in the model data structure
-M.structure.na = na;
-M.structure.pa = length(options.basis.indices);
-M.structure.basis = options.basis;
+M.Structure.na = na;
+M.Structure.pa = pa;
+M.Structure.ps = ps;
+M.Structure.basis = options.basis;
+M.Structure.basis.ind_ba = ba;
+M.Structure.basis.ind_bs = bs;
 M.model_type = 'LPV-AR';
 
 %% ------------------------------------------------------------------------
-function options = check_input(signals,order,options)
+function options = check_input(signals,structure,options)
 
-na = order(1);
-pa = order(2);
+na = structure.na;
+pa = structure.pa;
 
 if ~isfield(options,'basis')
     options.basis.type = 'hermite';                                         % Default basis type : Hermite polynomials

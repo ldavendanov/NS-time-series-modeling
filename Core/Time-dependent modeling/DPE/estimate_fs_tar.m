@@ -96,6 +96,7 @@ end
 %-- Other fields in the model data structure
 M.Structure.na = na;
 M.Structure.pa = pa;
+M.Structure.ps = ps;
 M.Structure.basis = options.basis;
 M.Model_type = 'FS-TAR';
 

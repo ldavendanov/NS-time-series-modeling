@@ -43,7 +43,7 @@ xi = wtdata.azimuth/360;                                                    % Ro
 t0 = 1e3;                                                                   % Initial analysis time
 N = 6e3;                                                                    % Signal length
 t = t(1:N);
-y = y(t0+(1:N),2);
+y = y(t0+(1:N),1);
 xi = xi(t0+(1:N));
 
 %-- Calculating the sampling period
@@ -71,6 +71,7 @@ sign_validation.scheduling_variables = xi(ind_val)';                        % Sc
 %-- Structural parameters of the LPV-AR model
 na_max = 25;                                                                % Maximum model order
 pa = 7;                                                                     % Functional basis order
+ps = 7;
 options.basis.type = 'fourier';                                             % Type of functional basis
 
 %-- Initializing computation matrices
@@ -82,11 +83,13 @@ bic = zeros(1,na_max);                                                      % Ba
 for na = 1:na_max
     
     %-- Calculating training performance criteria
-    order = [na pa];
-    M = estimate_lpv_ar(signals,order,options);
-    rss_sss(1,na) = M.performance.rss_sss;
-    lnL(1,na) = M.performance.lnL;
-    bic(na) = M.performance.bic;
+    structure.na = na;
+    structure.pa = pa;
+    structure.ps = ps;
+    M = estimate_lpv_ar(signals,structure,options);
+    rss_sss(1,na) = M.Performance.rss_sss;
+    lnL(1,na) = M.Performance.lnL;
+    bic(na) = M.Performance.bic;
     
     %-- Calculating validation performance criteria
     [~,criteria] = simulate_lpv_ar(sign_validation,M);
@@ -145,15 +148,19 @@ clc
 clear lnL rss_sss bic
 
 %-- Structural parameters of the LPV-AR model
-na = 11;                                                                    % Model order
-pa = 7;                                                                     % Functional basis order
-order = [na pa];                                                            % Order parameters
+structure.na = 7;                                                          % Model order
+
 options.basis.type = 'fourier';                                             % Type of functional basis
+if structure.ps > 1
+    options.estimator.type = 'multi-stage';
+else
+    options.estimator.type = 'ols';
+end
 
 %-- Estimating the LPV-AR model for the training data
-M = estimate_lpv_ar(signals,order,options);
-rss_sss(1,1) = M.performance.rss_sss;
-lnL(1,1) = M.performance.lnL;
+M = estimate_lpv_ar(signals,structure,options);
+rss_sss(1,1) = M.Performance.rss_sss;
+lnL(1,1) = M.Performance.lnL;
 
 %-- Validating the LPV-AR model on the validation data
 [xhat0,criteria] = simulate_lpv_ar(sign_validation,M);
@@ -166,7 +173,7 @@ lnL(2,1) = criteria.lnL;
 % distributed with mean zero and covariance equal to that provided by the
 % estimation algorithm.
 
-chi2_theta = reshape( M.performance.chi2_theta, pa, na );                   % Test statistic (chi squared distributed)
+chi2_theta = reshape( M.Performance.chi2_theta, structure.pa, structure.na ); % Test statistic (chi squared distributed)
 alph_chi2 = 10.^(-4:-1);                                                    % Probability of type I error (rejecting the null hypothesis)
 rho = chi2inv( 1-alph_chi2, 1 );                                            % Threshold for error probablity
 
@@ -175,34 +182,51 @@ Mrk = 'oxd^s*o';
 figure('Position',[100 100 600 800])
 pt = zeros(pa,1);
 for j=1:pa
-    pt(j) = semilogy( 1:na, chi2_theta(j,:), ['--',Mrk(j)], 'MarkerSize', 10, 'LineWidth', 2 );
+    pt(j) = semilogy( 1:structure.na, chi2_theta(j,:), ['--',Mrk(j)], 'MarkerSize', 10, 'LineWidth', 2 );
     hold on
 end
 
 grid on
 for i=1:numel(rho)
-    semilogy( [1 na], rho(i)*[1 1], 'k' )
+    semilogy( [1 structure.na], rho(i)*[1 1], 'k' )
     text( na-0.1, 1.25*rho(i), ['\alpha = ',num2str(alph_chi2(i))],'HorizontalAlignment','right' )
 end
-set(gca,'XTick',1:na)
+set(gca,'XTick',1:structure.na)
 legend(pt, {'$f_0(\xi)$','$f_1(\xi)$','$f_2(\xi)$','$f_3(\xi)$','$f_4(\xi)$','$f_5(\xi)$','$f_6(\xi)$'},'Interpreter','latex')
 xlabel('Model order')
 ylabel('\chi^2 test statistic')
 
+figure('Position',[800 100 600 800])
+semilogy( 1:structure.ps, M.InnovationsVariance.S.Performance.chi2_theta, '--o', 'MarkerSize', 10, 'LineWidth', 2 )
+hold on
+grid on
+for i=1:numel(rho)
+    semilogy( [1 structure.ps], rho(i)*[1 1], 'k' )
+    text( pa-0.1, 1.25*rho(i), ['\alpha = ',num2str(alph_chi2(i))],'HorizontalAlignment','right' )
+end
+set(gca,'XTick',1:structure.na)
+legend(pt, {'$f_0(\xi)$','$f_1(\xi)$','$f_2(\xi)$','$f_3(\xi)$','$f_4(\xi)$','$f_5(\xi)$','$f_6(\xi)$'},'Interpreter','latex')
+xlabel('Basis order')
+ylabel('\chi^2 test statistic')
+
+
 %-- Selected basis indices
 basis_indices = max( chi2_theta > rho(2) ,[],2);
+
 
 %% Validating the obtained LPV-AR model in the validation data
 close all
 clc
 
 opts = options;
-opts.basis.indices = basis_indices;
+opts.basis.ind_ba = 1:pa;
+opts.basis.ind_ba = opts.basis.ind_ba(basis_indices);
+opts.basis.ind_bs = opts.basis.ind_ba;
 
 %-- Estimating the LPV-AR model for the training data
-M1 = estimate_lpv_ar(signals,order,opts);
-rss_sss(1,2) = M1.performance.rss_sss;
-lnL(1,2) = M1.performance.lnL;
+M1 = estimate_lpv_ar(signals,structure,opts);
+rss_sss(1,2) = M1.Performance.rss_sss;
+lnL(1,2) = M1.Performance.lnL;
 
 %-- Validating the LPV-AR model on the validation data
 [xhat,criteria] = simulate_lpv_ar(sign_validation,M1);
@@ -216,6 +240,7 @@ grid on
 xlabel('Time [s]')
 ylabel('Acceleration [m/s^2]')
 legend({'Complete LPV-AR model','Reduced LPV-AR model','Original'})
+xlim([500 600])
 
 subplot(212)
 plot(t(ind_val),xhat0'-y(ind_val),t(ind_val),xhat'-y(ind_val))
@@ -223,11 +248,12 @@ grid on
 xlabel('Time [s]')
 ylabel('Prediction error - Acceleration [m/s^2]')
 legend({'Complete LPV-AR model','Reduced LPV-AR model'})
+xlim([500 600])
 
 figure('Position',[1000 100 900 800])
-A0 = M.a;
+A0 = M.ar_part.a;
 AA = zeros(size(A0));
-AA(basis_indices,:) = M1.a;
+AA(basis_indices,:) = M1.ar_part.a;
 for i=1:pa
     subplot(pa,1,i)
     plot(A0(i,:),['--',Mrk(1)])
@@ -253,6 +279,8 @@ m = 250;
 Xi_range = linspace(0,1,m);
 [Pyy,omega,omegaN,zeta] = MBA_lpv_ar(M1,Xi_range);
 
+[Pyy_w,om] = pwelch(y(ind_train),hamming(512),256,512,1/Ts);
+
 figure('Position',[100 100 900 800])
 
 subplot(211)
@@ -269,9 +297,9 @@ ylim([0 1/(2*Ts)])
 subplot(212)
 dx = 0.01*[0 1];
 dy = 0.04*[0 1];
-for i=1:na
+for i=1:M1.Structure.na
     for j=1:m
-        if zeta(i,j) <= 0.25 && zeta(i,j) >= 0
+        if zeta(i,j) <= 0.4 && zeta(i,j) >= 0
             imagesc(Xi_range(j)+dx,omegaN(i,j)/(2*pi*Ts)+dy,100*zeta(i,j))
             hold on
         end
@@ -286,3 +314,13 @@ grid on
 cbar = colorbar;
 cbar.Label.String = 'Damping ratio [%]';
 set(gca,'XTick',0:0.25:1)
+
+
+figure('Position',[1000 100 900 800])
+surf(Xi_range,omega/(2*pi*Ts),10*log10(Pyy),'LineStyle','none')
+hold on
+plot3(-0.2*ones(size(om)),om,10*log10(Pyy_w),'LineWidth',2)
+view([95 60])
+xlabel('Rotor azimuth [rad/2\pi]')
+ylabel('Frequency [Hz]')
+zlabel('PSD [dB]')
