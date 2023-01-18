@@ -24,6 +24,7 @@ function [a,c,se,other] = sptarma(obs,order,options)
 %   other   ->  Structure with estimation and performance summary
 %
 % Ellaborated by:   David Avendano, February 2014
+%      Revised  :   David Avendano - January 2022
 %--------------------------------------------------------------------------
 
 % Definition of global variables
@@ -114,7 +115,7 @@ switch options.VarianceEstimator.Type
         se = zeros(1,N);
         buff = zeros(1,options.VarianceEstimator.Param);
         for tt = 1:N
-            buff = [other.e(tt) buff(1:end-1)];
+            buff = [other.ettN(tt) buff(1:end-1)];
             se(tt) = mean(buff.^2);
         end
 end
@@ -218,10 +219,10 @@ Sigma_v = P.Sigma_v;
 sigma_w = P.sigma_w;
 
 % Computing the performance measures
-Performance.rss = sum(other.e(ini:end).^2);
+Performance.rss = sum(other.ettN(ini:end).^2);
 Performance.rss_sss = Performance.rss/sum(y(ini:end).^2);
 Performance.pess = trace(other.v(:,ini:end)*other.v(:,ini:end)');
-D = (other.e(ini:end).^2./sigma_w) + diag((other.v(:,ini:end)'/Sigma_v)*other.v(:,ini:end))';
+D = (other.ettN(ini:end).^2./sigma_w) + diag((other.v(:,ini:end)'/Sigma_v)*other.v(:,ini:end))';
 Performance.JG = -(N*(M+1)/2)*log(2*pi) - (N/2)*log(det(Sigma_v)) - (N/2)*log(sigma_w) - (1/2)*sum(D);
 Performance.ObjFun = (1/2)*sum(D);
 

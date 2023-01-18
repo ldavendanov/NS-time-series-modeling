@@ -29,6 +29,7 @@ function [a,c,se,other] = gsctarmaEM(obs,order,options)
 %                   David Avendano, December 2012, Ver 3.0 (non linear estimator of the GSC-TARMA hyperparameters)
 %                   David Avendano, February 2013, Ver 3.5 (revision + model validation)
 %                   David Avendano, October 2013, Ver 4
+%        Revised  : David Avendano - January 2022
 %--------------------------------------------------------------------------
 
 % Definition of global variables
@@ -117,7 +118,7 @@ for iter = 2:options.max_iter
     [xttN,other] = KFestimGSC(mu(:,iter-1)',theta0(:,iter-1),options);
     
     % Updating the stocastic constraint parameters and mean TARMA parameters
-    [mu(:,iter),theta0(:,iter),options.IniCond] = Hyperparameters(xttN,other.PttN,other.e);
+    [mu(:,iter),theta0(:,iter),options.IniCond] = Hyperparameters(xttN,other.PttN,other.ettN);
     phi_ = [mu(:,iter-1); theta0(:,iter-1)];
     phi = [mu(:,iter); theta0(:,iter)];
     
@@ -167,7 +168,7 @@ switch options.VarianceEstimator.Type
         se = zeros(1,N);
         buff = zeros(1,options.VarianceEstimator.Param);
         for tt = 1:N
-            buff = [other.e(tt) buff(1:end-1)];
+            buff = [other.ettN(tt) buff(1:end-1)];
             se(tt) = mean(buff.^2);
         end
 end
@@ -289,10 +290,10 @@ Sigma_v = StateNoise;
 sigma_w = MeasNoise;
 
 % Computing the performance measures
-Performance.rss = sum(other.e(ini:end).^2);
+Performance.rss = sum(other.ettN(ini:end).^2);
 Performance.rss_sss = Performance.rss/sum(y(ini:end).^2);
 Performance.pess = trace(other.v(:,ini:end)*other.v(:,ini:end)');
-D = (other.e(ini:end).^2./sigma_w) + diag(other.v(:,ini:end)'*pinv(Sigma_v)*other.v(:,ini:end))';
+D = (other.ettN(ini:end).^2./sigma_w) + diag(other.v(:,ini:end)'*pinv(Sigma_v)*other.v(:,ini:end))';
 Performance.JG = -(N*(M+1)/2)*log(2*pi) - (N/2)*log(det(Sigma_v)) - (N/2)*log(sigma_w) - (1/2)*sum( D);
 Performance.ObjFun = (1/2)*sum(D);
 

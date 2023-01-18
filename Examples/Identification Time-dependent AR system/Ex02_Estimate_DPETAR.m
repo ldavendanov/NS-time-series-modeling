@@ -13,6 +13,8 @@ clear
 close all
 clc
 
+addpath(genpath('..\..\Core\'))
+
 %% Creating a realization of a TAR process --------------------------------
 
 fprintf('Simulating TAR model...\n')

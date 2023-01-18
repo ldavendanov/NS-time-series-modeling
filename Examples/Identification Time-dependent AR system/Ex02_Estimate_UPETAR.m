@@ -7,14 +7,14 @@
 % this example
 %
 % Created by : David Avendano - January 2015
+%   Revised  : David Avendano - January 2022
 %--------------------------------------------------------------------------
-clear all
+clear
 close all
 clc
 
 % Adding into the path the functions corresponding to simulation of TARMA models
-addpath('C:\Users\David\Documents\MATLAB\Nonstationary TB v4\Estimation')
-addpath('C:\Users\David\Documents\MATLAB\Nonstationary TB v4\Simulation')
+addpath(genpath('..\..\Core\'))
 
 %% Creating a realization of a TAR process --------------------------------
 
