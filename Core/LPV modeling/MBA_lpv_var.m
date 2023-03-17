@@ -3,7 +3,7 @@ function [Pyy,omega,omegaN,zeta,Psi] = MBA_lpv_var(M,xi)
 %% Part 0 : Unpacking and checking input
 
 N = size(xi,2);
-n = size(M.ParameterVector,1);
+n = size(M.Parameters.Theta,1);
 
 %-- Model structure
 na = M.structure.na;                                                        % AR order
@@ -14,13 +14,28 @@ pa = M.structure.pa;                                                        % Ba
 %-- Building the representation basis according to the basis type
 switch M.structure.basis.type
     
+    %-- Cosine basis
+    case 'cosine'
+
+        g = ones(pa,N);
+        for j=1:pa-1
+            g(j+1,:) = cos(j*2*pi*xi);
+        end
+
     %-- Fourier basis
     case 'fourier'
         
-        g = ones(pa,N);
-        for j=1:(pa-1)/2
-            g(2*j,:) = sin(j*2*pi*xi(1,:));
-            g(2*j+1,:) = cos(j*2*pi*xi(1,:));
+        % The basis order must be odd when using the Fourier basis to
+        % ensure numerical stability
+        if mod(pa,2) == 0
+            pa = pa-1;
+            warning('Basis order must be odd when using the Fourier basis. Basis order set to p-1')
+        else
+            g = ones(pa,N);
+            for j=1:(pa-1)/2
+                g(2*j,:) = sin(j*pi*xi);
+                g(2*j+1,:) = cos(j*pi*xi);
+            end
         end
         
     %-- Hermite polynomials
@@ -64,10 +79,10 @@ for i=1:N
         for k=1:na
             Aden = Aden + A(:,:,k,i)*exp(-1i*omega(j)*k);
         end
-        Pyy(:,:,j,i) = abs((Aden\M.InnovationsCovariance)/Aden);
+        Pyy(:,:,j,i) = abs((Aden\M.InnovationsCovariance.SigmaW)/Aden);
     end 
     
-    D = [ reshape(A(:,:,:,i),n,n*na); eye(n*(na-1),n*na) ];
+    D = [ reshape(-A(:,:,:,i),n,n*na); eye(n*(na-1),n*na) ];
     [V,rho] = eig(D);
     Psi(:,:,i) = V(1:n,:);
     rho = diag(rho);

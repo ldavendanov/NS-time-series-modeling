@@ -1,4 +1,5 @@
-function M = estimate_lpv_var(signals,order,options)
+function Performance = mos_lpv_var(signals,order,options)
+%% Model order selection for LPV-VAR model
 
 %% Part 0 : Unpacking and checking input
 
@@ -19,9 +20,9 @@ options = check_input(signals,order,options);
 %-- Building the representation basis according to the basis type
 switch options.basis.type
     
-     %-- Cosine basis
+    %-- Cosine basis
     case 'cosine'
-
+        
         g = ones(pa,N);
         for j=1:pa-1
             g(j+1,:) = cos(j*2*pi*xi);
@@ -74,35 +75,48 @@ for i=1:na
     Phi((1:n*pa)+(i-1)*n*pa,:) = Y(:,tau-i);
 end
 
-%% Part 3 : Calculating the estimate
+%% Part 3 : Calculating the LPV-VAR models with increasing model order - QR algorithm
 
-switch options.estimator.type
-    %-- Ordinary Least Squares estimator
-    case 'ols'
-        M = ols(Phi,y(:,tau));
-        M.a = reshape(M.Parameters.Theta,n,n,pa,na);
-        M.estimator = 'Ordinary Least Squares';
+[Q,R] = qr(Phi','econ');
+Y = y(:,tau);
+Th0 = (Y/Q');
 
-    case 'svd_ols'
-        M = svd_ols(Phi,y(:,tau));
-        M.a = reshape(M.Parameters.Theta,n,n,pa,na);
-        M.estimator = 'Ordinary Least Squares - SVD algorithm';
+rss_sss = zeros(na,1);
+bic = zeros(na,1);
+spp = zeros(na,1);
+CN = zeros(na,1);
+for i = 1:na
+
+    fprintf('Computing for na = %3d and pa = %3d\n',i,0)
+
+    for k=1:pa
         
-    case 'map_normal'
-        Theta0 = options.estimator.Theta0;                                  % Prior mean parameter vector
-        SigmaTh = options.estimator.SigmaTheta;                             % Prior parameter covariance
-        sigmaW2 = options.estimator.sigmaW2;                                % Innovations variance
-        
-        M = mapNormal(Phi,y(tau),Theta0,SigmaTh,sigmaW2);
-        M.a = reshape(M.ParameterVector,n,n,pa,na);
-        M.estimator = 'Maximum A Posteriori - Normal Prior';
+        fprintf('\b\b\b\b%3d\n',k)
+
+        indx = false(1,n*pa*na);
+        for j=1:i
+            indx( (1:k*n) + (j-1)*pa*n ) = true;
+        end
+
+        r = R(:,indx);
+        Theta = Th0/r';
+        err = Y - Theta*Phi(indx,:);
+        SigmaW = cov(err');
+
+        %-- Performance criteria
+        rss = sum(sum(err.^2));                                                 % Residual Sum of Squares ( RSS )
+        rss_sss(i,k) = rss/sum(sum(Y.^2));                                        % Residual Sum of Squares over Series Sum of Squares
+        lnL = -(1/2)*( trace( log(2*pi*det(SigmaW)) + (err*err')/SigmaW ) );
+        bic(i,k) = log(N)*numel(Theta) - 2*lnL;                                   % Bayesian Information Criterion ( BIC )
+        spp(i,k) = N/numel(Theta);                                                % Samples Per Parameter ( SPP )
+        CN(i,k) = cond(r);                                                        % Condition Number of the inverted matrices - Numerical accurady of the estimate
+    end
 end
 
-%-- Other fields in the model data structure
-M.structure.na = na;
-M.structure.pa = length(options.basis.indices);
-M.structure.basis = options.basis;
-M.model_type = 'LPV-AR';
+Performance.rss_sss = rss_sss;
+Performance.bic = bic;
+Performance.spp = spp;
+Performance.CN = CN;
 
 %% ------------------------------------------------------------------------
 function options = check_input(signals,order,options)
