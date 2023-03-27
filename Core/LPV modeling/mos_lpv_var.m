@@ -17,46 +17,11 @@ options = check_input(signals,order,options);
 
 %% Part 1 : Constructing the representation basis
 
-%-- Building the representation basis according to the basis type
-switch options.basis.type
-    
-    %-- Cosine basis
-    case 'cosine'
-        
-        g = ones(pa,N);
-        for j=1:pa-1
-            g(j+1,:) = cos(j*2*pi*xi);
-        end
-
-    %-- Fourier basis
-    case 'fourier'
-        
-        % The basis order must be odd when using the Fourier basis to
-        % ensure numerical stability
-        if mod(pa,2) == 0
-            pa = pa-1;
-            warning('Basis order must be odd when using the Fourier basis. Basis order set to p-1')
-        else
-            g = ones(pa,N);
-            for j=1:(pa-1)/2
-                g(2*j,:) = sin(j*pi*xi);
-                g(2*j+1,:) = cos(j*pi*xi);
-            end
-        end
-        
-    %-- Hermite polynomials
-    case 'hermite'
-        g = ones(pa,N);
-        g(2,:) = 2*xi;
-        for j=3:pa
-            g(j,:) = 2*xi.*g(j-1,:) - 2*(j-1)*g(j-2,:);
-        end
-        
-end
+%-- Construct the parameter projection basis
+g = lpv_basis(xi,1:pa,options.basis);
 
 %-- Selecting the indices of the basis to be used in the analysis
 if isfield(options.basis,'indices')
-    g = g(options.basis.indices,:);
     pa = sum(options.basis.indices);
 end
 
@@ -79,7 +44,7 @@ end
 
 [Q,R] = qr(Phi','econ');
 Y = y(:,tau);
-Th0 = (Y/Q');
+Y0 = (Y/Q');
 
 rss_sss = zeros(na,1);
 bic = zeros(na,1);
@@ -99,17 +64,17 @@ for i = 1:na
         end
 
         r = R(:,indx);
-        Theta = Th0/r';
+        Theta = Y0/r';
         err = Y - Theta*Phi(indx,:);
         SigmaW = cov(err');
 
         %-- Performance criteria
-        rss = sum(sum(err.^2));                                                 % Residual Sum of Squares ( RSS )
-        rss_sss(i,k) = rss/sum(sum(Y.^2));                                        % Residual Sum of Squares over Series Sum of Squares
+        rss = sum(sum(err.^2));                                                     % Residual Sum of Squares ( RSS )
+        rss_sss(i,k) = rss/sum(sum(Y.^2));                                          % Residual Sum of Squares over Series Sum of Squares
         lnL = -(1/2)*( trace( log(2*pi*det(SigmaW)) + (err*err')/SigmaW ) );
-        bic(i,k) = log(N)*numel(Theta) - 2*lnL;                                   % Bayesian Information Criterion ( BIC )
-        spp(i,k) = N/numel(Theta);                                                % Samples Per Parameter ( SPP )
-        CN(i,k) = cond(r);                                                        % Condition Number of the inverted matrices - Numerical accurady of the estimate
+        bic(i,k) = log(numel(Y))*numel(Theta) + numel(Y)*log(det(SigmaW));          % Bayesian Information Criterion ( BIC )
+        spp(i,k) = N*n/numel(Theta);                                                % Samples Per Parameter ( SPP )
+        CN(i,k) = cond(r);                                                          % Condition Number of the inverted matrices - Numerical accurady of the estimate
     end
 end
 

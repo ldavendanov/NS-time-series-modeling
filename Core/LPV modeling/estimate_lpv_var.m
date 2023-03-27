@@ -16,46 +16,11 @@ options = check_input(signals,order,options);
 
 %% Part 1 : Constructing the representation basis
 
-%-- Building the representation basis according to the basis type
-switch options.basis.type
-    
-     %-- Cosine basis
-    case 'cosine'
-
-        g = ones(pa,N);
-        for j=1:pa-1
-            g(j+1,:) = cos(j*2*pi*xi);
-        end
-
-    %-- Fourier basis
-    case 'fourier'
-        
-        % The basis order must be odd when using the Fourier basis to
-        % ensure numerical stability
-        if mod(pa,2) == 0
-            pa = pa-1;
-            warning('Basis order must be odd when using the Fourier basis. Basis order set to p-1')
-        else
-            g = ones(pa,N);
-            for j=1:(pa-1)/2
-                g(2*j,:) = sin(j*pi*xi);
-                g(2*j+1,:) = cos(j*pi*xi);
-            end
-        end
-        
-    %-- Hermite polynomials
-    case 'hermite'
-        g = ones(pa,N);
-        g(2,:) = 2*xi;
-        for j=3:pa
-            g(j,:) = 2*xi.*g(j-1,:) - 2*(j-1)*g(j-2,:);
-        end
-        
-end
+%-- Construct the parameter projection basis
+g = lpv_basis(xi,1:pa,options.basis);
 
 %-- Selecting the indices of the basis to be used in the analysis
 if isfield(options.basis,'indices')
-    g = g(options.basis.indices,:);
     pa = sum(options.basis.indices);
 end
 
@@ -80,23 +45,43 @@ switch options.estimator.type
     %-- Ordinary Least Squares estimator
     case 'ols'
         M = ols(Phi,y(:,tau));
-        M.a = reshape(M.Parameters.Theta,n,n,pa,na);
+        M.a.projection = reshape(M.Parameters.Theta,n,n,pa,na);
+        M.a.time = M.Parameters.Theta*g;
         M.estimator = 'Ordinary Least Squares';
 
     case 'svd_ols'
         M = svd_ols(Phi,y(:,tau));
-        M.a = reshape(M.Parameters.Theta,n,n,pa,na);
+        M.a.projection = reshape(M.Parameters.Theta,n,n,pa,na);
         M.estimator = 'Ordinary Least Squares - SVD algorithm';
         
     case 'map_normal'
         Theta0 = options.estimator.Theta0;                                  % Prior mean parameter vector
         SigmaTh = options.estimator.SigmaTheta;                             % Prior parameter covariance
         sigmaW2 = options.estimator.sigmaW2;                                % Innovations variance
-        
-        M = mapNormal(Phi,y(tau),Theta0,SigmaTh,sigmaW2);
-        M.a = reshape(M.ParameterVector,n,n,pa,na);
+        nu = 1;
+
+        M = mapNormalBatch(Phi,y(:,tau),Theta0,SigmaTh,sigmaW2,nu);
+        M.a.projection = reshape(M.Parameters.Theta,n,n,pa,na);
         M.estimator = 'Maximum A Posteriori - Normal Prior';
 end
+
+%-- Project parameters and parameter variance on time
+M.a.time = zeros(n,n,na,N);
+for i=1:N
+    M.a.time(:,:,:,i) = squeeze(g(1,i)*M.a.projection(:,:,1,:));
+    for j=2:pa
+        M.a.time(:,:,:,i) = M.a.time(:,:,:,i) + g(j,i)*squeeze(M.a.projection(:,:,j,:));
+    end
+end
+
+% M.a.time = zeros(n,n,N,na);
+% for k=1:N
+%     for i=1:na
+%         for j=1:pa
+%             M.a.time(:,:,k,i) = M.a.time(:,:,k,i) + M.a.projection(:,:,j,i).*g(j,k);
+%         end
+%     end
+% end
 
 %-- Other fields in the model data structure
 M.structure.na = na;
@@ -107,6 +92,7 @@ M.model_type = 'LPV-AR';
 %% ------------------------------------------------------------------------
 function options = check_input(signals,order,options)
 
+[n,N] = size(signals.response);
 na = order(1);
 pa = order(2);
 
@@ -125,12 +111,12 @@ end
 
 if strcmp(options.estimator.type,'map_normal')
     if ~isfield(options.estimator,'Theta0')
-        options.estimator.Theta0 = zeros(na*pa,1);
+        options.estimator.Theta0 = zeros(n,n*na*pa);
     end
     if ~isfield(options.estimator,'SigmaTheta')
-        options.estimator.SigmaTheta = eye(na*pa);
+        options.estimator.SigmaTheta = 1e0*eye(na*pa);
     end
     if ~isfield(options.estimator,'sigmaW2')
-        options.estimator.sigmaW2 = 1;
+        options.estimator.sigmaW2 = diag(0.1*var(signals.response,[],2));
     end
 end

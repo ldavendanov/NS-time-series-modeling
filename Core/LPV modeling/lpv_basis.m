@@ -58,8 +58,8 @@ switch options.type
     case 'cosine'
         
         Gb = ones(pa,N);
-        for k=1:pa
-            Gb(k,:) = cos( k*2*pi*xi );
+        for k=1:pa-1
+            Gb(k+1,:) = cos( k*2*pi*xi );
         end
         
     %-- Polynomial basis (Chebyshev polynomials)
@@ -105,4 +105,7 @@ switch options.type
 end
 
 % Extracting the required basis indexes
-Gb = Gb(ind,:);
+% Gb = Gb(ind,:);
+if isfield(options,'indices')
+    Gb = Gb(options.indices,:);
+end
