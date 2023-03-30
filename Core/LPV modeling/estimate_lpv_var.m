@@ -56,11 +56,11 @@ switch options.estimator.type
         
     case 'map_normal'
         Theta0 = options.estimator.Theta0;                                  % Prior mean parameter vector
-        SigmaTh = options.estimator.SigmaTheta;                             % Prior parameter covariance
-        sigmaW2 = options.estimator.sigmaW2;                                % Innovations variance
-        nu = 1;
+        Lambda0 = options.estimator.Lambda0;                                % Prior parameter covariance
+        V0 = options.estimator.V0;                                          % Innovations variance
+        nu = n - 1;
 
-        M = mapNormalBatch(Phi,y(:,tau),Theta0,SigmaTh,sigmaW2,nu);
+        M = mapNormalBatch(Phi,y(:,tau),Theta0,Lambda0,V0,nu);
         M.a.projection = reshape(M.Parameters.Theta,n,n,pa,na);
         M.estimator = 'Maximum A Posteriori - Normal Prior';
 end
@@ -113,10 +113,10 @@ if strcmp(options.estimator.type,'map_normal')
     if ~isfield(options.estimator,'Theta0')
         options.estimator.Theta0 = zeros(n,n*na*pa);
     end
-    if ~isfield(options.estimator,'SigmaTheta')
-        options.estimator.SigmaTheta = 1e0*eye(na*pa);
+    if ~isfield(options.estimator,'Lambda0')
+        options.estimator.Lambda0 = 1e0*eye(n*na*pa);
     end
-    if ~isfield(options.estimator,'sigmaW2')
-        options.estimator.sigmaW2 = diag(0.1*var(signals.response,[],2));
+    if ~isfield(options.estimator,'V0')
+        options.estimator.V0 = diag(0.1*var(signals.response,[],2));
     end
 end

@@ -1,10 +1,9 @@
-function M = mapNormalBatch(Phi,Y,Theta0,SigmaTh0,SigmaW20,nu0)
+function M = mapNormalBatch(Phi,Y,Theta0,Lambda0,SigmaW20,nu0)
 
 m = size(Y,1);
 [n,N] = size(Phi);
 
 %-- Batch computation of posterior parameter mean and covariance
-Lambda0 = kron(SigmaTh0,SigmaW20);
 Lambda = Phi*Phi' + Lambda0;
 Theta = (Y*Phi' + Theta0*Lambda0) / Lambda;
 
@@ -13,7 +12,7 @@ errTh = Theta - Theta0;
 
 V = SigmaW20 + errY*errY' + ( errTh/Lambda0 )*errTh';
 nu = nu0 + N;
-SigmaW = V/nu;
+SigmaW = V/(nu + m + 1);
 if m == 1
     M.InnovationsVariance.sigmaW2 = SigmaW;                                 % Innovations variance (scalar output)
 else
@@ -21,11 +20,10 @@ else
 end
 
 %-- Calculating the parameter covariance matrix estimate
-C0 = Phi*Phi';
 if m == 1
     SigmaTheta = sigmaW2*eye(n)/Lambda;                                     % Estimated covariance matrix of the parameter vector
 else
-    SigmaTheta.K0 = Lambda;                                                 % Estimated covariance matrix of the parameter vector
+    SigmaTheta.Lambda = Lambda;                                                 % Estimated covariance matrix of the parameter vector
     SigmaTheta.SigmaW = SigmaW;
     sigmaTheta2 = kron(diag(Lambda),diag(SigmaW));                          % Diagonal of the perameter covariance
 end
@@ -43,7 +41,7 @@ end
 %-- Diagnostic of the estimator
 M.Performance.bic = log(N)*n - 2*M.Performance.lnL;                         % Bayesian Information Criterion ( BIC )
 M.Performance.spp = N/n;                                                    % Samples Per Parameter ( SPP )
-M.Performance.CN = cond(C0);                                                % Condition Number of the inverted matrices - Numerical accurady of the estimate
+M.Performance.CN = cond(Lambda);                                            % Condition Number of the inverted matrices - Numerical accurady of the estimate
 M.Performance.chi2_theta = Theta(:).^2 ./ sigmaTheta2;                      % Statistic to determine if the parameters are statistically different from zer
 
 %-- Packing the output
