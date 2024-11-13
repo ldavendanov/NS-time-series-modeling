@@ -60,9 +60,10 @@ xlabel('Time [s]')
 ylabel('Rotor azimuth [rad/2\pi]')
 
 %-- Spectral analysis -----------------------------------------------------
-[Pyy,f] = pwelch(y,hamming(1024),512,1024,1/Ts);
-[Syy1,ff,tt] = spectrogram(y(:,1),hamming(512),510,512,1/Ts);
-Syy2 = spectrogram(y(:,2),hamming(512),510,512,1/Ts);
+Nf = 2^11;
+[Pyy,f] = pwelch(y,hamming(Nf),3*Nf/4,Nf,1/Ts);
+[Syy1,ff,tt] = spectrogram(y(:,1),gausswin(Nf,8),Nf-5,Nf,1/Ts);
+Syy2 = spectrogram(y(:,2),gausswin(Nf,8),Nf-5,Nf,1/Ts);
 
 
 figure('Position',[1000 100 900 400])

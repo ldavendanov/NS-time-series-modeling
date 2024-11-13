@@ -38,11 +38,11 @@ Pyy = zeros(Nfrec,N);
 omegaN = zeros(na,N);
 zeta = zeros(na,N);
 
-A = M.ar_part.a'*Gba;
+A = M.ar_part.a'*Gba(M.Structure.basis.ind_ba,:);
 omega = 2*pi*(0:Nfrec-1)/(2*Nfrec);
 
 if M.Structure.ps > 1
-    sigmaW2 = M.InnovationsVariance.S.Parameters.Theta*Gbs;
+    sigmaW2 = M.InnovationsVariance.S.Parameters.Theta*Gbs(M.Structure.basis.ind_bs,:);
 else
     sigmaW2 = M.InnovationsVariance.sigmaW2*ones(1,N);
 end

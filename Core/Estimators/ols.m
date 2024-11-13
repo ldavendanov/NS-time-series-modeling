@@ -21,7 +21,7 @@ if m == 1
     SigmaTheta = sigmaW2*eye(n)/K0;                                         % Estimated covariance matrix of the parameter vector
     sigmaTheta2 = diag(SigmaTheta);                                             % Diagonal of the perameter covariance
 else
-    SigmaTheta.K0 = K0;                                                     % Estimated covariance matrix of the parameter vector
+    SigmaTheta.K0 = pinv(K0);                                                     % Estimated covariance matrix of the parameter vector
     SigmaTheta.SigmaW = SigmaW;
     sigmaTheta2 = kron(diag(K0),diag(SigmaW));                              % Diagonal of the perameter covariance
 end
@@ -45,3 +45,4 @@ M.Performance.chi2_theta = Theta(:).^2 ./ sigmaTheta2;                      % St
 %-- Packing the output
 M.Parameters.Theta = Theta;
 M.Parameters.SigmaTheta = SigmaTheta;
+M.Innovations = err;

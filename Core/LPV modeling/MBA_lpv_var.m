@@ -45,4 +45,7 @@ for i=1:N
     rho = diag(rho);
     omegaN(:,i) = abs(log(rho));
     zeta(:,i) = -cos(angle(log(rho)));
+
+    [omegaN(:,i),ind] = sort(omegaN(:,i));
+    zeta(:,i) = zeta(ind,i);
 end

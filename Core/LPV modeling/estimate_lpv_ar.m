@@ -24,10 +24,10 @@ options = check_input(signals,structure,options);
 %-- Representation basis for the AR parameters
 if isfield(options.basis,'ind_ba')
     ba = options.basis.ind_ba;
-    Gba = lpv_basis(xi,ba,options.basis);
+    Gba = lpv_basis(xi,1:pa,options.basis);
 else
     ba = 1:pa;
-    Gba = lpv_basis(xi,ba,options.basis);
+    Gba = lpv_basis(xi,1:pa,options.basis);
 end
 
 %-- Representation basis for the innovations variance
@@ -64,9 +64,9 @@ switch options.estimator.type
     
     %-- Ordinary Least Squares estimator
     case 'ols'
-        M = ols(Phi,y(tau));
+        M = ols(Phi,y(:,tau));
         M.ar_part.a = reshape(M.Parameters.Theta,numel(ba),na);
-        M.ar_part.a_time = M.ar_part.a'*Gba;
+        M.ar_part.a_time = M.ar_part.a'*Gba(options.basis.ind_ba,:);
         M.Estimator = 'Ordinary Least Squares';
         
         %-- Instantaneous Innovations Variance estimate
@@ -82,16 +82,16 @@ switch options.estimator.type
         
         M = mapNormal(Phi,y(tau),Theta0,SigmaTh,sigmaW2);
         M.ar_part.a = reshape(M.ParameterVector,numel(ba),na);
-        M.ar_part.a_time = M.a'*Gba;
+        M.ar_part.a_time = M.a'*Gba(options.basis.ind_ba,:);
         M.Estimator = 'Maximum A Posteriori - Normal Prior';
         
     %-- Multi-Stage method
     case 'multi-stage'
-        M = MultiStageML( Phi, y(tau), Gbs(:,tau) );   
+        M = MultiStageML( Phi, y(tau), Gbs(options.basis.ind_bs,tau) );   
         M.ar_part.a = reshape(M.Parameters.Theta,numel(ba),na);
-        M.ar_part.a_time = M.ar_part.a'*Gba;
+        M.ar_part.a_time = M.ar_part.a'*Gba(options.basis.ind_ba,:);
         M.InnovationsVariance.s = M.InnovationsVariance.S.Parameters.Theta;
-        M.InnovationsVariance.sigmaW2 = M.InnovationsVariance.s*Gbs;
+        M.InnovationsVariance.sigmaW2 = M.InnovationsVariance.s*Gbs(options.basis.ind_bs,:);
         
         M.Estimator = 'Multi-Stage ML';
 end
@@ -113,11 +113,11 @@ pa = structure.pa;
 
 if ~isfield(options,'basis')
     options.basis.type = 'hermite';                                         % Default basis type : Hermite polynomials
-    options.basis.indices = true(1,pa);
+    options.basis.ind_ba = 1:pa;
 end
 
-if ~isfield(options.basis,'indices')
-    options.basis.indices = true(1,pa);
+if ~isfield(options.basis,'ind_ba')
+    options.basis.ind_ba = 1:pa;
 end
 
 if ~isfield(options,'estimator')

@@ -53,7 +53,7 @@ end
 yhat = [zeros(1,na), Theta*Phi];
 err = y(:,tau) - yhat(:,tau);
 if M.Structure.ps > 1
-    sigmaW2 = M.InnovationsVariance.S.Parameters.Theta*Gbs;
+    sigmaW2 = M.InnovationsVariance.S.Parameters.Theta*Gbs(M.Structure.basis.ind_bs,:);
 else
     sigmaW2 = M.InnovationsVariance.sigmaW2*ones(1,N);
 end

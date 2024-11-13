@@ -1,4 +1,4 @@
-function M = estimate_lpv_var(signals,order,options)
+function M = estimate_lpv_var(signals,structure,options)
 
 %% Part 0 : Unpacking and checking input
 
@@ -8,11 +8,11 @@ xi = signals.scheduling_variables;                                          % Sc
 [n,N] = size(y);                                                            % Signal length
 
 %-- Model structure
-na = order(1);                                                              % AR order
-pa = order(2);                                                              % Basis order
+na = structure.na;                                                              % AR order
+pa = structure.pa;                                                              % Basis order
 
 %-- Completing the options structure
-options = check_input(signals,order,options);
+options = check_input(signals,structure,options);
 
 %% Part 1 : Constructing the representation basis
 
@@ -46,12 +46,19 @@ switch options.estimator.type
     case 'ols'
         M = ols(Phi,y(:,tau));
         M.a.projection = reshape(M.Parameters.Theta,n,n,pa,na);
-        M.a.time = M.Parameters.Theta*g;
+        M.a.time = zeros(n,n*na,N);
+        for i=1:N
+            M.a.time(:,:,i) = M.Parameters.Theta*kron(eye(n*na),g(:,i));
+        end
         M.estimator = 'Ordinary Least Squares';
 
     case 'svd_ols'
         M = svd_ols(Phi,y(:,tau));
         M.a.projection = reshape(M.Parameters.Theta,n,n,pa,na);
+        M.a.time = zeros(n,n*na,N);
+        for i=1:N
+            M.a.time(:,:,i) = M.Parameters.Theta*kron(eye(n*na),g(:,i));
+        end
         M.estimator = 'Ordinary Least Squares - SVD algorithm';
         
     case 'map_normal'
@@ -62,6 +69,10 @@ switch options.estimator.type
 
         M = mapNormalBatch(Phi,y(:,tau),Theta0,Lambda0,V0,nu);
         M.a.projection = reshape(M.Parameters.Theta,n,n,pa,na);
+        M.a.time = zeros(n,n*na,N);
+        for i=1:N
+            M.a.time(:,:,i) = M.Parameters.Theta*kron(eye(n*na),g(:,i));
+        end
         M.estimator = 'Maximum A Posteriori - Normal Prior';
 end
 
@@ -74,27 +85,19 @@ for i=1:N
     end
 end
 
-% M.a.time = zeros(n,n,N,na);
-% for k=1:N
-%     for i=1:na
-%         for j=1:pa
-%             M.a.time(:,:,k,i) = M.a.time(:,:,k,i) + M.a.projection(:,:,j,i).*g(j,k);
-%         end
-%     end
-% end
-
 %-- Other fields in the model data structure
 M.structure.na = na;
 M.structure.pa = length(options.basis.indices);
 M.structure.basis = options.basis;
-M.model_type = 'LPV-AR';
+M.model_type = 'LPV-VAR';
+
 
 %% ------------------------------------------------------------------------
-function options = check_input(signals,order,options)
+function options = check_input(signals,structure,options)
 
 [n,N] = size(signals.response);
-na = order(1);
-pa = order(2);
+na = structure.na;
+pa = structure.pa;
 
 if ~isfield(options,'basis')
     options.basis.type = 'hermite';                                         % Default basis type : Hermite polynomials

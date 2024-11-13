@@ -29,6 +29,8 @@ clear
 close all
 clc
 
+addpath(genpath('..\..\Core\'))
+
 %% Loading the wind turbine signals
 
 %-- Loading the wind turbine vibration data
