@@ -19,9 +19,9 @@ end
 K0 = Phi*Phi';
 if m == 1
     SigmaTheta = sigmaW2*eye(n)/K0;                                         % Estimated covariance matrix of the parameter vector
-    sigmaTheta2 = diag(SigmaTheta);                                             % Diagonal of the perameter covariance
+    sigmaTheta2 = diag(SigmaTheta);                                         % Diagonal of the perameter covariance
 else
-    SigmaTheta.K0 = pinv(K0);                                                     % Estimated covariance matrix of the parameter vector
+    SigmaTheta.K0 = pinv(K0);                                               % Estimated covariance matrix of the parameter vector
     SigmaTheta.SigmaW = SigmaW;
     sigmaTheta2 = kron(diag(K0),diag(SigmaW));                              % Diagonal of the perameter covariance
 end

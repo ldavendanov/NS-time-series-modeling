@@ -47,3 +47,4 @@ M.Performance.chi2_theta = Theta(:).^2 ./ sigmaTheta2;                      % St
 %-- Packing the output
 M.Parameters.Theta = Theta;
 M.Parameters.SigmaTheta = SigmaTheta;
+M.Innovations = err;

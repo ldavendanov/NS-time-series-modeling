@@ -1,13 +1,15 @@
-function [yhat,performance] = simulate_lpv_var(signals,M)
+function [yhat,performance] = simulate_lpv_varx(signals,M)
 
 %% Part 0 : Unpacking the input
 y = signals.response;
+x = signals.excitation;
 xi = signals.scheduling_variables;
 Theta = M.Parameters.Theta;
 
 na = M.structure.na;
 pa = M.structure.pa;
 [n,N] = size(y);                                                            % Signal length
+m = size(x,1);
 
 %% Part 1 : Constructing the representation basis
 switch M.structure.basis.type
@@ -42,17 +44,24 @@ pa = sum(M.structure.basis.indices);
 %% Part 2 : Constructing the regression matrix
 
 %-- Constructing the lifted signal
+X = zeros(m*pa,N);
+for j=1:pa
+    X((1:m)+m*(j-1),:) = x.*repmat(g(j,:),m,1);
+end
 Y = zeros(n*pa,N);
 for j=1:pa
     Y((1:n)+n*(j-1),:) = -y.*repmat(g(j,:),n,1);
 end
 
 %-- Constructing the regression matrix
-Phi = zeros(n*na*pa,N-na);
+PhiY = zeros(n*na*pa,N-na);
+PhiX = zeros(m*na*pa,N-na);
 tau = na+1:N;
 for i=1:na
-    Phi((1:n*pa)+(i-1)*n*pa,:) = Y(:,tau-i);
+    PhiY((1:n*pa)+(i-1)*n*pa,:) = Y(:,tau-i);
+    PhiX((1:m*pa)+(i-1)*m*pa,:) = X(:,tau-i);
 end
+Phi = [PhiY; PhiX];
 
 %% Part 3 : Calculating predicitons and performance
 
