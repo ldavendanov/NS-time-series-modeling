@@ -3,18 +3,7 @@ close all
 clc
 
 % Physical properties of the system
-System.mb = 60*[1.00 1 1];                                                  % Blade mass (kg)
-System.kb = 4e4*[1.05 1 1];                                                    % Blade torsional stiffness (N/rad)
-System.cb = 2e-1*[1 1 1];                                                   % Blade torsional damping (N.s/rad)
-System.lb = 2;                                                              % Blade length (m)
-
-System.Mt = 4e3;                                                            % Tower mass (kg)
-System.Jo = 9e2;                                                            % Drivetrain mass moment of inertia (kg.m^2)
-System.Kt = [6e4 8e4];                                                      % Tower stiffness [horizontal vertical] (N/m)
-System.Ct = [5 5];                                                          % Tower damping coeff [horizontal vertical] (N.s/m)
-
-System.Cpi = [1e2 1e3];                                                     % Constants of PI control of rotor speed [Cp Ci]
-
+System = WTrotorProperties;
 OmegaRef = 2*pi*12/60;                                                      % Rotational speed (rad/s)
 
 % Simulation properties
@@ -23,11 +12,8 @@ T = 20*60;                                                                  % Sa
 N = (T*fs0)+1;                                                              % Number of samples
 t = (0:N-1)/fs0;                                                            % Time vector
 
-% Excitation properties
-[b,a] = butter(4,[0.01 0.05]);                                                     % Parameters of beamforming filter
-TauMn = 10;                                                                 % Mean value of excitation (N.m)
-TauSD = 0.4;                                                                % Standard deviation of excitation (N.m)
-TauM = TauMn + TauSD*filter(b,a,randn(N,3))';                               % Excitation time series - Torque at each blade (N.m)
+% Create excitation
+TauM = SimulateExcitation(N,fs0);                                           % Excitation time series - Torque at each blade (N.m)
 
 % Integrate EOM
 [t,z] = ode45( @(t,z)WTRotorEOM( t,z, System, OmegaRef, TauM, fs0 ), t, zeros(13,1) );
@@ -39,7 +25,7 @@ for i=1:N
     y(i,:) = dz(7:11);
 end
 
-beta = mod(z(:,6),2*pi)/(2*pi);
+beta = mod(z(:,6),2*pi)/(2*pi);                                             % Rotor angle (azimuth)
 
 %% Downsampling
 close all

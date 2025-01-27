@@ -4,8 +4,7 @@ clc
 
 % Define WT rotor properties
 System = WTrotorProperties;                                                 % Physical properties of the WT
-n = 5;
-
+n = 5;                                                                      % System dimensionality 
 OmegaRef = 2*pi*10/60;                                                      % Rotational speed (rad/s)
 
 % Simulation properties
@@ -49,8 +48,9 @@ ind_train = 2e3+(1:100*T*fs);
 signals.response = ys(ind_train,1:5)';                                      % Response ( horizontal tower acceleration )
 signals.scheduling_variables = beta(ind_train)';                            % Scheduling variable ( rotor azimuth )
 
-na_max = 5;
-pa_max = 15;
+% Model structure selection
+na_max = 5;                                                                 % Maximum AR order
+pa_max = 15;                                                                % Maximum basis order
 
 na = 1:na_max;
 pa = 1:2:pa_max;
@@ -58,6 +58,7 @@ pa = 1:2:pa_max;
 rss_sss = zeros(numel(na),numel(pa));
 bic = zeros(numel(na),numel(pa));
 
+% Computation loop
 for i = 1:numel(na)
     for j=1:numel(pa)
 
@@ -140,8 +141,12 @@ m = 200;
 Xi_range = linspace(0,1,m);
 [Pyy,omega,omegaN,zeta] = MBA_lpv_var(M,Xi_range);
 
-figure
-tiledlayout(1,5)
+%% Plot results
+close all
+clc
+
+figure('Position',[100 100 600 600])
+tiledlayout(5,1)
 for i=1:5
     nexttile
     imagesc(Xi_range,omega*fs/(2*pi),10*log10(squeeze(Pyy(i,i,:,:))))
@@ -150,7 +155,7 @@ for i=1:5
 end
 
 
-figure
+figure('Position',[100 100 900 480])
 tiledlayout(3,1)
 
 nexttile
@@ -161,20 +166,23 @@ plot(omegaN'*fs/(2*pi),100*zeta','LineWidth',2)
 xlim([0 fs/2])
 grid on
 
-figure
+xlabel('Frozen natural frequency (Hz)')
+ylabel('Frozen damping ratio (-)')
+
+figure('Position',[100 100 900 320])
 tiledlayout(1,2)
 
 nexttile
 plot(Xi_range,omegaN*fs/(2*pi),'LineWidth',2)
 grid on
 xlabel('Time (s)')
-ylabel('Frequency (Hz)')
+ylabel('Frozen natural frequency (Hz)')
 
 nexttile
 plot(Xi_range,zeta*100,'LineWidth',2)
 grid on
 xlabel('Time (s)')
-ylabel('Damping ratio (%)')
+ylabel('Frozen damping ratio (%)')
 
 
 %%
