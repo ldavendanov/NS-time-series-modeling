@@ -21,9 +21,9 @@ zeta = zeros(n*na,N);
 
 A = zeros(n,n,na,N);
 for i=1:N
-    A(:,:,:,i) = squeeze(g(1,i)*M.a.projection(:,:,1,:));
+    A(:,:,:,i) = squeeze(g(1,i)*M.a(:,:,1,:));
     for j=2:pa
-        A(:,:,:,i) = A(:,:,:,i) + g(j,i)*squeeze(M.a.projection(:,:,j,:));
+        A(:,:,:,i) = A(:,:,:,i) + g(j,i)*squeeze(M.a(:,:,j,:));
     end
 end
 

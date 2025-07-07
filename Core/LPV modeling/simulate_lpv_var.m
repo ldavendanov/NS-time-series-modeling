@@ -10,33 +10,9 @@ pa = M.structure.pa;
 [n,N] = size(y);                                                            % Signal length
 
 %% Part 1 : Constructing the representation basis
-switch M.structure.basis.type
 
-    case 'cosine'
-
-        g = ones(pa,N);
-        for j=1:pa-1
-            g(j+1,:) = cos(j*2*pi*xi);
-        end
-
-    case 'fourier'
-        g = ones(pa,N);
-        for j=1:(pa-1)/2
-            g(2*j,:) = sin(j*2*pi*xi(1,:));
-            g(2*j+1,:) = cos(j*2*pi*xi(1,:));
-        end
-        
-    case 'hermite'
-        g = ones(pa,N);
-        g(2,:) = 2*xi;
-        for j=3:pa
-            g(j,:) = 2*xi.*g(j-1,:) - 2*(j-1)*g(j-2,:);
-        end
-        
-end
-
-%-- Selecting the indices of the basis to be used in the analysis
-g = g(M.structure.basis.indices,:);
+ind = 1:pa;
+g = lpv_basis(xi,ind(M.structure.basis.indices),M.structure.basis);
 pa = sum(M.structure.basis.indices);
 
 %% Part 2 : Constructing the regression matrix
